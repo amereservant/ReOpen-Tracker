@@ -1,0 +1,6 @@
+Options -Indexes
+# Try to convert requests to 'scrape' or 'announce' to php file requests.
+<FilesMatch "^(scrape|announce)$">
+	ForceType application/x-httpd-php
+</FilesMatch>
+php_flag magic_quotes_gpc off
