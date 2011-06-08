@@ -17,44 +17,59 @@
  * If you wish to use an SQLite database, then leave the <b>DB_USER</b> and <b>DB_PASS</b>
  * constants set to '' and it will try to use the SQLite database instead.
  */
-define( 'DB_HOST', 'localhost' );       // Database Host Name
-define( 'DB_USER', '' );                // Dabase User Name
-define( 'DB_PASS', '' );                // Database Password
-define( 'DB_DB'  , 'reopentracker' );   // Database Name (Also used by SQLite as the filename)
-define( 'DB_TABLE' , 'peers' );         // Database Table Name
+// MySQL database host name
+define( 'DB_HOST', 'localhost' );
+
+// MySQL database username
+define( 'DB_USER', '' );
+
+// MySQL database password
+define( 'DB_PASS', '' );
+
+// Database Name (also used as SQLite filename)
+define( 'DB_NAME'  , 'reopentracker' );
+
+// Database Table Name
+define( 'DB_TABLE' , 'peers' );
 
 // SQLITE Database Filename
-define( 'SQLITE_FILE', DB_DB .'.sdb' );
+define( 'SQLITE_FILE', DB_NAME .'.sdb' );
 
-/*
- * Peers should wait at least this many seconds between announcements
- */
-$min_announce_interval = 900; // seconds
+// Peers should wait at least this many seconds between announcements
+define( 'MIN_ANNOUNCE_INTERVAL', 900 );
 
 /*
  * Maximum desired announcements per minute for all peers combined
  * (announce interval will be increased if necessary to achieve this)
  */
-$max_announce_rate = 500; // announcements per minute
+define( 'MAX_ANNOUNCE_RATE', 500 );
 
 /*
  * Consider a peer dead if it has not announced in a number of seconds equal
  * to this many times the calculated announce interval at the time of its last
  * announcement (must be greater than 1; recommend 1.2)
  */
-$expire_factor = 1.2;
+define( 'EXPIRE_FACTOR', 1.2 );
 
 /*
  * Peers should wait at least this many times the current calculated announce
  * interval between scrape requests
  */
-$scrape_factor = 0.5;
+define( 'SCRAPE_FACTOR', 0.5 );
 
 /*
  * Should we require a certain announce protocol?
- *   "standard" allows all protocols
- *   "no_peer_id" allows only no_peer_id and compact
- *   "compact" allows only compact
+ *   "standard"     allows all protocols
+ *   "no_peer_id"   allows only no_peer_id and compact
+ *   "compact"      allows only compact
  */
-$require_announce_protocol = 'standard';
+define( 'REQUIRE_ANNOUNCE_PROTOCOL', 'standard' );
 
+// Abbreviate Directory Separator
+if( !defined('DS') ) define( 'DS', DIRECTORY_SEPARATOR );
+
+// Base Directory Path
+define( 'ROT_PATH', realpath(dirname(__FILE__)) . DS );
+
+// System Directory Path
+define( 'ROT_SYSTEM_PATH', ROT_PATH .'system'. DS );
