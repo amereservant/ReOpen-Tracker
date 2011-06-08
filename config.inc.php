@@ -70,7 +70,12 @@ if( !defined('DS') ) define( 'DS', DIRECTORY_SEPARATOR );
 
 // Base Directory Path
 define( 'ROT_PATH', realpath(dirname(__FILE__)) . DS );
+<<<<<<< HEAD
 
 // System Directory Path
 define( 'ROT_SYSTEM_PATH', ROT_PATH .'system'. DS );
+=======
+>>>>>>> 9787e6e87858425bb5aba271e52400259fe94070
 
+// System Directory Path
+define( 'ROT_SYSTEM_PATH', ROT_PATH .'system'. DS );
