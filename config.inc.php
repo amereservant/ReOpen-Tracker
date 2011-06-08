@@ -73,3 +73,4 @@ define( 'ROT_PATH', realpath(dirname(__FILE__)) . DS );
 
 // System Directory Path
 define( 'ROT_SYSTEM_PATH', ROT_PATH .'system'. DS );
+
