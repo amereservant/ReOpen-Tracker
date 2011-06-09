@@ -1,13 +1,27 @@
 <?php
-/*
- * ReopenTracker
+/**
+ * ReOpenTracker - Configuration
  *
- * This is a fork of the OpenTracker project, which impliments PDO driver for SQLite
- * database support and is easily changed to MySQL if that is the preferred database.
+ * This contains the settings for the ReOpenTracker application.
  *
- * This application requires PHP5.
+ * @requires PHP5
  *
- * @version     1.0.0
+ * The ReOpenTracker is a project designed to easily be built on and implemented into
+ * other projects.  
+ * By itself, it provides the user with a minimalistic Bittorrent tracker but offers
+ * no way of controlling torrent tracking and could be used by others to torrent
+ * copywritten material without your knowledge.
+ *
+ * The ReOpenTracker project derived from the {@link http://www.whitsoftdev.com/opentracker/ OpenTracker}
+ * which is where it gets it's name from and to whom credit is due for the base code
+ * for this project.
+ *
+ * @category    Bittorrent
+ * @package     ReOpenTracker
+ * @version     1.0.1
+ * @author      David Miles <david@amereservant.com>
+ * @link        https://github.com/amereservant/ReOpen-Tracker ReOpenTracker @ GitHub
+ * @license     http://creativecommons.org/licenses/by-sa/3.0/ Creative Commons Attribution-ShareAlike 3.0 Unported
  */
  
 /**
@@ -36,7 +50,7 @@ define( 'DB_TABLE' , 'peers' );
 define( 'SQLITE_FILE', DB_NAME .'.sdb' );
 
 // Peers should wait at least this many seconds between announcements
-define( 'MIN_ANNOUNCE_INTERVAL', 900 );
+define( 'MIN_ANNOUNCE_INTERVAL', 300 );
 
 /*
  * Maximum desired announcements per minute for all peers combined
@@ -70,12 +84,7 @@ if( !defined('DS') ) define( 'DS', DIRECTORY_SEPARATOR );
 
 // Base Directory Path
 define( 'ROT_PATH', realpath(dirname(__FILE__)) . DS );
-<<<<<<< HEAD
 
 // System Directory Path
 define( 'ROT_SYSTEM_PATH', ROT_PATH .'system'. DS );
-=======
->>>>>>> 9787e6e87858425bb5aba271e52400259fe94070
 
-// System Directory Path
-define( 'ROT_SYSTEM_PATH', ROT_PATH .'system'. DS );

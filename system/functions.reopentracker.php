@@ -293,3 +293,34 @@ function validate_request()
 
     return TRUE;
 }
+
+/**
+ * Log Request Data
+ *
+ * This logs the request data to a file for debugging/development purposes.
+ * This is the best way I found for testing to see what is being requested by the
+ * torrent client.
+ *
+ * @param   string  $name   The log file name, such as 'announce' or 'scrape' 
+ *                          which is appended to the filename.
+ * @return  void
+ * @access  public
+ * @since   1.0.1
+ */
+function log_request( $name='default' )
+{
+    $data  = "=======  ENTRY BEGIN =======\n\n";
+    $data .= "\$_REQUEST DATA:\n";
+    foreach($_REQUEST as $key => $var)
+    {
+        $data .= "\t'{$key}' = {$var}\n";
+    }
+    $data .= "\n\$_SERVER DATA:\n";
+    foreach($_SERVER as $key => $var)
+    {
+        $data .= "\t'{$key}' = {$var}\n";
+    }
+    $data .= "\n=======  ENTRY END =======\n\n\n";
+    touch('log-'. $name .'.log');
+    @file_put_contents('log-'. $name .'.log', $data, FILE_APPEND);
+}

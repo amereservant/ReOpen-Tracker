@@ -7,13 +7,12 @@
  *
  * This application requires PHP5.
  */
-file_put_contents('scrapereq.txt', print_r($_SERVER, true));
+header('Content-Type: text/plain; charset=utf-8');
 require 'config.inc.php';
 require ROT_SYSTEM_PATH .'class.reopendb.php';
 require ROT_SYSTEM_PATH .'class.reopentracker.php';
 require ROT_SYSTEM_PATH .'functions.reopentracker.php';
-
-header('Content-Type: text/plain');
+//log_request('scrape');
 $rotdb = new reopen_tracker;
 
 $rotdb->scrape();

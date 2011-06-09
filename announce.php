@@ -9,13 +9,12 @@
  *
  * @since  1.0.0
  */
-file_put_contents('req.txt', print_r($_SERVER, true));
+header('Content-Type: text/plain; charset=utf-8');
 require 'config.inc.php';
 require ROT_SYSTEM_PATH .'class.reopendb.php';
 require ROT_SYSTEM_PATH .'class.reopentracker.php';
 require ROT_SYSTEM_PATH .'functions.reopentracker.php';
-
-header('Content-Type: text/plain');
+//log_request('announce');
 $rotdb = new reopen_tracker;
-file_put_contents('req.txt', print_r($_REQUEST, true));
+
 $rotdb->announce();

@@ -26,6 +26,33 @@
 class reopen_db extends PDO
 {
    /**
+    * Number of Seeders
+    *
+    * @var      integer
+    * @access   protected
+    * @since    1.0.1
+    */
+    protected $seeders = NULL;
+    
+   /**
+    * Number of Leechers
+    *
+    * @var      integer
+    * @access   protected
+    * @since    1.0.1
+    */
+    protected $leechers = NULL;
+    
+   /**
+    * Database Driver
+    *
+    * @var      string
+    * @access   protected
+    * @since    1.0.1
+    */
+    protected $driver;
+   
+   /**
     * Class Constructor
     *
     * This tests for the values of <b>DB_USER</b> and <b>DB_PASS</b> to determine
@@ -52,8 +79,10 @@ class reopen_db extends PDO
                 if( !in_array('mysql', $drivers) )
                     errorexit('The PDO extension does not have the mysql driver!');
                 
-                parent::__construct( 'mysql:dbname='. DB_DB .';host='. DB_HOST, DB_USER, DB_PASS,
+                parent::__construct( 'mysql:dbname='. DB_NAME .';host='. DB_HOST, DB_USER, DB_PASS,
                     array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION) );
+                
+                $this->driver = 'mysql';
             }
             else
             // Must be using SQLite..
@@ -63,6 +92,8 @@ class reopen_db extends PDO
                     
                 parent::__construct('sqlite:' . SQLITE_FILE, '', '', 
                     array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION));
+                
+                $this->driver = 'sqlite';
             }
         }
         catch(PDOException $e)
@@ -83,34 +114,63 @@ class reopen_db extends PDO
     */
     public function updatePeer( $data, $ip, $expire_time )
     {
-        $sql = "REPLACE INTO ". DB_TABLE ." (info_hash, ip, port, peer_id, uploaded, " .
-               "downloaded, left, update_time, expire_time) VALUES ( :hash, :ip, :port, " .
-               ":peer_id, :uploaded, :downloaded, :left, :update, :expire)";
+        // Try to update it first
+        $sql = "UPDATE ". DB_TABLE ." SET peer_id=:peer_id, " .
+               "uploaded=:uploaded, downloaded=:downloaded, remaining=:left, update_time=:update, " .
+               "expire_time=:expire WHERE info_hash=:hash AND port=:port AND ip=:ip";
         $row_count = false;
         $time      = time();
         $expire    = $time + $expire_time;
-        
         try
         {
             $stmt = $this->prepare($sql);
-
+            
             $stmt->bindParam( ':hash',       $data['info_hash'],    PDO::PARAM_STR );
             $stmt->bindParam( ':ip',         $ip,                   PDO::PARAM_INT );
-            $stmt->bindParam( ':port',       $_GET['port'],         PDO::PARAM_INT );
-            $stmt->bindParam( ':peer_id',    $_GET['peer_id'],      PDO::PARAM_INT );
-            $stmt->bindParam( ':uploaded',   $_GET['uploaded'],     PDO::PARAM_INT );
-            $stmt->bindParam( ':downloaded', $_GET['downloaded'],   PDO::PARAM_INT );
-            $stmt->bindParam( ':left',       $_GET['left'],         PDO::PARAM_INT );
+            $stmt->bindParam( ':port',       $data['port'],         PDO::PARAM_INT );
+            $stmt->bindParam( ':peer_id',    $data['peer_id'],      PDO::PARAM_STR );
+            $stmt->bindParam( ':uploaded',   $data['uploaded'],     PDO::PARAM_INT );
+            $stmt->bindParam( ':downloaded', $data['downloaded'],   PDO::PARAM_INT );
+            $stmt->bindParam( ':left',       $data['left'],         PDO::PARAM_INT );
             $stmt->bindParam( ':update',     $time,                 PDO::PARAM_INT );
             $stmt->bindParam( ':expire',     $expire,               PDO::PARAM_INT );
             $stmt->execute();
             $row_count = $stmt->rowCount();
+            
         }
         catch(PDOException $e)
         {
             errorexit($e->getMessage());
         }
         
+        // If we didn't update it, let's create it
+        if($row_count < 1)
+        {
+            $sql = "INSERT INTO ". DB_TABLE . " (info_hash, ip, port, peer_id, uploaded, " .
+               "downloaded, remaining, update_time, expire_time) VALUES ( :hash, :ip, :port, " .
+               ":peer_id, :uploaded, :downloaded, :left, :update, :expire)";
+               
+            try
+            {
+                $stmt = $this->prepare($sql);
+
+                $stmt->bindParam( ':hash',       $data['info_hash'],    PDO::PARAM_STR );
+                $stmt->bindParam( ':ip',         $ip,                   PDO::PARAM_INT );
+                $stmt->bindParam( ':port',       $data['port'],         PDO::PARAM_INT );
+                $stmt->bindParam( ':peer_id',    $data['peer_id'],      PDO::PARAM_STR );
+                $stmt->bindParam( ':uploaded',   $data['uploaded'],     PDO::PARAM_INT );
+                $stmt->bindParam( ':downloaded', $data['downloaded'],   PDO::PARAM_INT );
+                $stmt->bindParam( ':left',       $data['left'],         PDO::PARAM_INT );
+                $stmt->bindParam( ':update',     $time,                 PDO::PARAM_INT );
+                $stmt->bindParam( ':expire',     $expire,               PDO::PARAM_INT );
+                $stmt->execute();
+                $row_count = $stmt->rowCount();
+            }
+            catch(PDOException $e)
+            {
+                errorexit($e->getMessage());
+            }
+        }
         return ($row_count !== FALSE && $row_count > 0 ? TRUE : FALSE);
     }
 
@@ -182,6 +242,48 @@ class reopen_db extends PDO
         {
             errorexit($e->getMessage());
         }
+    }
+    
+   /**
+    * Set Number Of Seeders and Leechers
+    *
+    * This method ensures the number of seeders and leechers has been set and if not,
+    * it will make the neccessary query to do so.
+    *
+    * @param    string  $hash   The info hash for the torrent we're retrieving the count for.
+    * @return   bool            TRUE if successfully set, FALSE if not.
+    * @access   protected
+    * @since    1.0.1
+    */
+    protected function set_num_seeders_leechers( $hash )
+    {
+        if( !is_null($this->seeders) && !is_null($this->leechers) ) return TRUE;
+        
+        $sql      = "SELECT remaining FROM ". DB_TABLE ." WHERE info_hash=:hash";
+        $seeders  = 0;
+        $leechers = 0;
+        try
+        {
+            $stmt = $this->prepare($sql);
+            $stmt->bindParam(':hash', $hash, PDO::PARAM_STR);
+            $stmt->execute();
+            
+            while( ($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== FALSE )
+            {
+                if( $row['remaining'] != 0 )
+                    $leechers++;
+                else
+                    $seeders++;
+            }
+            $this->seeders  = $seeders;
+            $this->leechers = $leechers;
+            return TRUE;
+        }
+        catch(PDOException $e)
+        {
+            errorexit($e->getMessage());
+        }
+        return FALSE;
     }
     
    /**

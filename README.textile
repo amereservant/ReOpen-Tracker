@@ -1,0 +1,21 @@
+h1. ReOpenTracker
+
+p. ReOpenTracker is a very light-weight Bittorrent tracker that supports both MySQL and SQLite database types.
+It is an extensive rewrite to "OpenTracker":http://www.whitsoftdev.com/opentracker/ by WhitSoftDev with the goal of being modular in design so it can easily be integrated into other projects.  The code is well-documented for further developers and makes a great starter project for those wanting to dive into writing their own Bittorrent tracker script.
+
+h2. A Note Of Caution
+
+p. As-is, ReOpenTracker is a public tracker with no user/access control, so be careful since it does allow anonymous users to use it and they could be sharing copyright material via your tracker.  There's also very minor security implementations written in it.
+
+h2. Requirements
+
+p. The minimal requirements for ReOpenTorrent are as follows:
+* Apache or equivalent HTTP server.
+* PHP5 >= 5.1 _(not completely sure if 5.2 is required)_.
+* PDO extension _(normally installed with PHP5)_.
+* PDO _mysql_ or _sqlite_ driver for database.
+* Database knowledge since table creation is currently manual.
+
+h3. Support
+
+p. All issues and feedback should be made at the project's "GitHub Issues":https://github.com/amereservant/ReOpen-Tracker/issues page.

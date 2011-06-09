@@ -57,10 +57,13 @@ class reopen_tracker extends reopen_db
    /**
     * Announce
     *
-    * This method takes care of all of the <b>Announce</b> functions for the tracker.
+    * This method takes care of all of the <b>Announce</b> page logic for the tracker.
+    * For more details, see {@link http://wiki.theory.org/BitTorrentSpecification#Tracker_HTTP.2FHTTPS_Protocol}
+    * for a complete list of request and response parameters.
     *
     * @param    void
-    * @return   string  Outputs the bencode-encoded string of either the error or tracker info
+    * @return   string  Outputs the bencode-encoded string of either the error or torrent
+    *                   tracker info.
     * @access   public
     * @since    1.0.1
     */
@@ -85,6 +88,7 @@ class reopen_tracker extends reopen_db
         $getip = empty($_GET['ip']) ? $_SERVER['REMOTE_ADDR'] : $_GET['ip'];
         $ip    = resolve_ip( $getip );
         
+        // This usually tests true when testing on localhost
         if( $ip === FALSE )
             errorexit('Unable to resolve host name '. $getip);
         
@@ -96,15 +100,25 @@ class reopen_tracker extends reopen_db
         $numwant = empty($_GET['numwant']) ? 50 : intval($_GET['numwant']);
         $peers   = $this->getPeers( $_GET['info_hash'], $numwant );
         
+        // Retrieve seeders/leechers
+        $this->set_num_seeders_leechers( $_GET['info_hash'] );
+        
         // _announce_interval is set by the {@link get_expire_time()} method.
-        exit( bencode(array('interval' => intval($this->_announce_interval), 'peers' => $peers)) );
+        exit( bencode(array('interval'  => intval($this->_announce_interval), 
+                             'peers'    => $peers,
+                             'incomplete' => $this->leechers,
+                             'complete'  => $this->seeders)) );
     }
     
    /**
-    * Scrape
+    * Scrape Page
+    *
+    * This renders the data for the scrape requests.
+    * For more information and a complete list of parameters rendered by the scrape page,
+    * visit {@link http://wiki.theory.org/BitTorrentSpecification#Tracker_.27scrape.27_Convention}.
     *
     * @param    void
-    * @return   string  bencode-encoded string
+    * @return   string  bencode-encoded string containing the scrape page return parameters
     * @access   public
     * @since    1.0.0
     */
@@ -123,32 +137,36 @@ class reopen_tracker extends reopen_db
 	        $hashes = $array['info_hash'];
         }
         
-        // retrieve statistics for each desired info hash
+        // Retrieve statistics for each desired info hash
         $files = array();
-        $stmt1 = $this->prepare("SELECT COUNT(*) FROM ". DB_TABLE ." WHERE info_hash = :hash " .
-                  "AND left = 0 AND expire_time > '". time() ."'");
-        $stmt2 = $this->prepare("SELECT COUNT(*) FROM ". DB_TABLE ." WHERE info_hash = :hash " .
-                 "AND left > 0 AND expire_time > '". time() ."'");
-        $stmt3 = $this->prepare("SELECT COUNT(*) FROM (SELECT DISTINCT ip, port FROM ". DB_TABLE .
-                 " WHERE info_hash = :hash AND left = 0)");
-
+        $stmt  = $this->prepare("SELECT remaining, expire_time FROM ". DB_TABLE ." WHERE info_hash = :hash");
+        
+        // Itterate over the hashes and query the database
         foreach( $hashes as $hash )
         {
-	        $stmt1->bindParam(':hash', $hash, PDO::PARAM_STR);
-	        $stmt1->execute();
-	        $result  = $stmt1->fetch(PDO::FETCH_NUM);   
-	        $complete = intval($result[0]);
-	
-	        $stmt2->bindParam(':hash', $hash, PDO::PARAM_STR);
-	        $stmt2->execute();
-	        $result     = $stmt2->fetch(PDO::FETCH_NUM);   
-	        $incomplete = intval($result[0]);
-	
-	        $stmt3->bindParam(':hash', $hash, PDO::PARAM_STR);
-	        $stmt3->execute();
-	        $result     = $stmt3->fetch(PDO::FETCH_NUM);   
-	        $downloaded = intval($result[0]);
-	
+	        $stmt->bindParam(':hash', $hash, PDO::PARAM_STR);
+	        $stmt->execute();
+	        
+	        $results    = FALSE;
+	        $complete   = 0;
+	        $incomplete = 0;
+	        $downloaded = 0;
+	        
+	        // Itterate over the results for the hash and build the stats
+	        while( ($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== FALSE )
+	        {
+	            if( $row['remaining'] == 0 )
+	                $complete++;
+	            else
+	                $incomplete++;
+	            
+	            $downloaded++;
+	            $results = TRUE;
+	        }
+	        // Don't add the hash if no data for it exists
+	        // NOTE: Not sure if the client will dislike not getting any results for the hash or not
+	        if($results === FALSE) continue;
+	        
 	        $files[$hash] = array('complete' => $complete, 'incomplete' => $incomplete, 'downloaded' => $downloaded);
         }
 
