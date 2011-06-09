@@ -18,10 +18,12 @@
  *
  * @category    Bittorrent
  * @package     ReOpenTracker
- * @version     1.0.1
+ * @version     1.0.2
  * @author      David Miles <david@amereservant.com>
  * @link        https://github.com/amereservant/ReOpen-Tracker ReOpenTracker @ GitHub
  * @license     http://creativecommons.org/licenses/by-sa/3.0/ Creative Commons Attribution-ShareAlike 3.0 Unported
+ * @todo        Can the database calls be minimalized and made to itterate over a property
+ *              value of a single database call?
  */
 class reopen_db extends PDO
 {
@@ -121,27 +123,20 @@ class reopen_db extends PDO
         $row_count = false;
         $time      = time();
         $expire    = $time + $expire_time;
-        try
-        {
-            $stmt = $this->prepare($sql);
-            
-            $stmt->bindParam( ':hash',       $data['info_hash'],    PDO::PARAM_STR );
-            $stmt->bindParam( ':ip',         $ip,                   PDO::PARAM_INT );
-            $stmt->bindParam( ':port',       $data['port'],         PDO::PARAM_INT );
-            $stmt->bindParam( ':peer_id',    $data['peer_id'],      PDO::PARAM_STR );
-            $stmt->bindParam( ':uploaded',   $data['uploaded'],     PDO::PARAM_INT );
-            $stmt->bindParam( ':downloaded', $data['downloaded'],   PDO::PARAM_INT );
-            $stmt->bindParam( ':left',       $data['left'],         PDO::PARAM_INT );
-            $stmt->bindParam( ':update',     $time,                 PDO::PARAM_INT );
-            $stmt->bindParam( ':expire',     $expire,               PDO::PARAM_INT );
-            $stmt->execute();
-            $row_count = $stmt->rowCount();
-            
-        }
-        catch(PDOException $e)
-        {
-            errorexit($e->getMessage());
-        }
+        $str       = PDO::PARAM_STR;
+        $num       = PDO::PARAM_INT;
+        $values = array(
+                    array('key' => ':hash',       'value' => $data['info_hash'], 'type' => $str),
+                    array('key' => ':ip',         'value' => $ip,                'type' => $num),
+                    array('key' => ':port',       'value' => $data['port'],      'type' => $num),
+                    array('key' => ':peer_id',    'value' => $data['peer_id'],   'type' => $str),
+                    array('key' => ':uploaded',   'value' => $data['uploaded'],  'type' => $int),
+                    array('key' => ':downloaded', 'value' => $data['downloaded'],'type' => $int),
+                    array('key' => ':left',       'value' => $data['left'],      'type' => $int),
+                    array('key' => ':update',     'value' => $time,              'type' => $int),
+                    array('key' => ':expire',     'value' => $expire,            'type' => $int)
+                 );
+        $row_count = $this->do_prepared_statement( $sql, $values, 'count', __LINE__ );
         
         // If we didn't update it, let's create it
         if($row_count < 1)
@@ -150,30 +145,159 @@ class reopen_db extends PDO
                "downloaded, remaining, update_time, expire_time) VALUES ( :hash, :ip, :port, " .
                ":peer_id, :uploaded, :downloaded, :left, :update, :expire)";
                
-            try
-            {
-                $stmt = $this->prepare($sql);
-
-                $stmt->bindParam( ':hash',       $data['info_hash'],    PDO::PARAM_STR );
-                $stmt->bindParam( ':ip',         $ip,                   PDO::PARAM_INT );
-                $stmt->bindParam( ':port',       $data['port'],         PDO::PARAM_INT );
-                $stmt->bindParam( ':peer_id',    $data['peer_id'],      PDO::PARAM_STR );
-                $stmt->bindParam( ':uploaded',   $data['uploaded'],     PDO::PARAM_INT );
-                $stmt->bindParam( ':downloaded', $data['downloaded'],   PDO::PARAM_INT );
-                $stmt->bindParam( ':left',       $data['left'],         PDO::PARAM_INT );
-                $stmt->bindParam( ':update',     $time,                 PDO::PARAM_INT );
-                $stmt->bindParam( ':expire',     $expire,               PDO::PARAM_INT );
-                $stmt->execute();
-                $row_count = $stmt->rowCount();
-            }
-            catch(PDOException $e)
-            {
-                errorexit($e->getMessage());
-            }
+            $row_count = $this->do_prepared_statement( $sql, $values, 'count', __LINE__ ); 
         }
         return ($row_count !== FALSE && $row_count > 0 ? TRUE : FALSE);
     }
 
+   /**
+    * Execute A Prepared Statement
+    *
+    * This prepares, binds parameters, then executes the prepared statement and returns
+    * the row count for how many rows were effected by the query.
+    *
+    * @param    string  $sql    The SQL syntax with the placeholder values to bind the
+    *                           parameters to.
+    * @param    array   $data   The parameters to be bound.  The array should be as follows:
+    *                           <code>
+    *                               array( array( 'key' => ':param1',
+    *                                             'value' => 'sample',
+    *                                             'length' => NULL, // Optional max-length value
+    *                                             'type'   => PDO::PARAM_STR // Can be PDO::PARAM_NUM as well
+    *                                           )
+    *                               )
+    *                             
+    *                               OR (See {@see reopen_tracer::scrape()} for an example of the next)
+    *                               
+    *                               array( array( array( 'key' => ':param1',
+    *                                                    'value' => 'sample',
+    *                                                    'length' => NULL, // Optional max-length value
+    *                                                    'type'   => PDO::PARAM_STR // Can be PDO::PARAM_NUM as well
+    *                                             ),
+    *                                             array( 'key' => ':param2',
+    *                                                    'value' => 'sample2',
+    *                                                    'length' => 120, // Optional max-length value
+    *                                                    'type'   => PDO::PARAM_STR // Can be PDO::PARAM_NUM as well
+    *                                             ),
+    
+    *                           </code>
+    * @param    string  $return             The return type, either <b>count</b> or <b>rows</b>.
+    * @param    integer $line_called_from   This parameter can be set, primarily for debugging purposes,
+    *                                       by passing it the magic constant __LINE__ when calling it
+    *                                       so the line the error occurs on can be easily found.
+    * @return   integer                     The number of rows effected by the query.
+    * @access   protected
+    * @since    1.0.2
+    */
+    protected function do_prepared_statement( $sql, $data, $return='count', $line_called_from=0 )
+    {
+        $multi  = FALSE;
+        $output = NULL;
+        try
+        {
+            $stmt = $this->prepare($sql);
+            foreach( $data as $val )
+            {
+                // If we're running multiple rows of queries on the same prepared statement ...
+                if(isset($val[0]))
+                {
+                    $multi = TRUE;
+                    foreach($val as $set)
+                    {
+                        if( isset($set['length']) && !is_null($set['length']) )
+                            $stmt->bindParam($set['key'], $set['value'], $set['type'], $set['length']);
+                        else
+                            $stmt->bindParam($set['key'], $set['value'], $set['type']);
+                    }
+                    $stmt->execute();
+                    // Make an associative array of the return values
+                    if($return == 'rows')
+                    {
+                        while( ($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== FALSE )
+                        {
+                            $output[] = $row;
+                        }
+                    }
+                    // Make an array of the row count affected by the last DELETE, INSERT, or UPDATE statement.
+                    // SELECT queries are considered inconsistent at returning the count.
+                    else
+                    {
+                        $output[] = $stmt->rowCount();
+                    }
+                }
+                // Just run a single query on the prepared statement ...
+                else
+                {
+                    if( isset($val['length']) && !is_null($val['length']) )
+                        $stmt->bindParam($val['key'], $val['value'], $val['type'], $val['length']);
+                    else
+                        $stmt->bindParam($val['key'], $val['value'], $val['type']);
+            
+                }
+            }
+            $stmt->execute();      
+            
+            if($return == 'rows')
+            {
+                while( ($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== FALSE )
+                {
+                    $output[] = $row;
+                }
+            }
+            else
+            {
+                $output = $stmt->rowCount();
+            }
+        }
+        catch(PDOException $e)
+        {
+            errorexit($e->getMessage() .' LINE:'. $line_called_from);
+        }
+        return $output;
+    }
+   
+   /**
+    * Do RAW Query
+    *
+    * This allows for executing raw SQL statements where binding parameters isn't necessary.
+    * You can specify whether the results should be returned as a <b>COUNT</b> result value
+    * or an array of <b>rows</b> of results.
+    *
+    * @param    string  $sql    The SQL query to perform
+    * @param    string  $type   The return type.  For COUNT queries, specify 'count',
+    *                           otherwise specify 'rows' to return an array of results.
+    * @return   integer|array   An integer if $type parameter is set to 'count',
+    *                           or an array with any matching values if matches were found.
+    * @access   protected
+    * @since    1.0.2
+    */
+    protected function do_raw_query( $sql, $type='rows', $line_called_from )
+    {
+        try
+        {
+            $stmt = $this->query( $sql );
+            
+            if( $type == 'count' )
+            {
+                $result = $stmt->fetch( PDO::FETCH_NUM );
+                return $result[0];
+            }
+            else
+            {
+                $rows = array();
+                while( ($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== FALSE )
+                {
+                    $rows[] = $row;
+                }
+                return $rows;
+            }
+        }
+        catch(PDOException $e)
+        {
+            errorexit($e->getMessage() .' LINE: '. $line_called_from);
+        }
+    }
+    
    /**
     * Get Peers
     *
@@ -181,41 +305,38 @@ class reopen_db extends PDO
     *
     * @param    string  $hash       The torrent SHA1 Hash to retrieve peers for.
     * @param    integer $num_to_get The number of peers to get.  Defaults to 50.
-    * @return   string              A binary string of the result data.
-    * @since    1.0
+    * @return   string|array        A binary string or an array of the result data.
+    * @since    1.0.0
     */
     public function getPeers( $hash, $num_to_get=50 )
     {
         $sql   = "SELECT ip, port, peer_id FROM ". DB_TABLE ." WHERE info_hash = :hash AND " .
                  "expire_time > ". time() ." LIMIT :getnum";
+        $str   = PDO::PARAM_STR;
+        $num   = PDO::PARAM_INT;
         
-        try
+        $values = array(
+                    array('key' => ':hash',   'value' => $hash,       'type' => $str),
+                    array('key' => ':getnum', 'value' => $num_to_get, 'type' => $num)
+                 );
+        $rows   = $this->do_prepared_statement( $sql, $values, 'rows', __LINE__ );
+        
+        if( is_null($rows) ) return NULL;
+        $peers = NULL;
+        
+        foreach( $rows as $row )
         {
-            $stmt = $this->prepare($sql);
+            if( isset($_REQUEST['compact']) && strlen($_REQUEST['compact']) > 0 )
+                $peers  .= pack('Nn', $row['ip'], $row['port']);
 
-            $stmt->bindParam( ':hash', $hash, PDO::PARAM_STR );
-            $stmt->bindParam( ':getnum', $num_to_get, PDO::PARAM_INT );
-            $stmt->execute();
-            $peers = NULL;
-            
-            while(($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== false)
-            {
-                if( isset($_REQUEST['compact']) && strlen($_REQUEST['compact']) > 0 )
-                    $peers .= pack('Nn', $row['ip'], $row['port']);
+            elseif( isset($_REQUEST['no_peer_id']) && strlen($_REQUEST['no_peer_id']) > 0 )
+                $peers[] = array('ip' => long2ip($row['ip']), 'port' => intval($row['port']));
 
-                elseif( isset($_REQUEST['no_peer_id']) && strlen($_REQUEST['no_peer_id']) > 0 )
-                    $peers[] = array('ip' => long2ip($row['ip']), 'port' => intval($row['port']));
-
-                else    
-                    $peers[] = array('ip' => long2ip($row['ip']), 'port' => intval($row['port']), 
-                                     'peer id' => $row['peer_id']);
-            }
-            return $peers;
+            else    
+                $peers[] = array('ip' => long2ip($row['ip']), 'port' => intval($row['port']), 
+                                 'peer id' => $row['peer_id']);
         }
-        catch(PDOException $e){
-            errorexit($e->getMessage());
-        }
-        return FALSE;
+        return $peers;
     }
     
    /**
@@ -232,16 +353,9 @@ class reopen_db extends PDO
     */
     protected function get_total_peers()
     {
-        try
-        {
-            $stmt   = $this->query( "SELECT COUNT(*) FROM ". DB_TABLE ." WHERE expire_time > '". time() ."'" );
-            $result = $stmt->fetch(PDO::FETCH_NUM);
-            return $result[0];
-        }
-        catch(PDOException $e)
-        {
-            errorexit($e->getMessage());
-        }
+        $sql = "SELECT COUNT(*) FROM ". DB_TABLE ." WHERE expire_time > '". time() ."'";
+        
+        return $this->do_raw_query( $sql, 'count', __LINE__ );
     }
     
    /**
@@ -251,7 +365,7 @@ class reopen_db extends PDO
     * it will make the neccessary query to do so.
     *
     * @param    string  $hash   The info hash for the torrent we're retrieving the count for.
-    * @return   bool            TRUE if successfully set, FALSE if not.
+    * @return   bool            TRUE if successfully set
     * @access   protected
     * @since    1.0.1
     */
@@ -262,28 +376,25 @@ class reopen_db extends PDO
         $sql      = "SELECT remaining FROM ". DB_TABLE ." WHERE info_hash=:hash";
         $seeders  = 0;
         $leechers = 0;
-        try
+        $values   = array(
+                        array('key' => ':hash', 'value' => $hash, 'type' => PDO::PARAM_STR)
+                    );
+        $rows     = $this->do_prepared_statement( $sql, $values, 'rows', __LINE__ );
+        $peers    = NULL;
+        
+        if( !is_null($rows) )
         {
-            $stmt = $this->prepare($sql);
-            $stmt->bindParam(':hash', $hash, PDO::PARAM_STR);
-            $stmt->execute();
-            
-            while( ($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== FALSE )
+            foreach( $rows as $row )
             {
                 if( $row['remaining'] != 0 )
                     $leechers++;
                 else
                     $seeders++;
             }
-            $this->seeders  = $seeders;
-            $this->leechers = $leechers;
-            return TRUE;
         }
-        catch(PDOException $e)
-        {
-            errorexit($e->getMessage());
-        }
-        return FALSE;
+        $this->seeders  = $seeders;
+        $this->leechers = $leechers;
+        return TRUE;
     }
     
    /**
@@ -295,22 +406,15 @@ class reopen_db extends PDO
     * It is also used for calculating the announce interval.
     *
     * @param    void
-    * @return   integer     The number of peers
+    * @return   integer     The number of total current tracker peers
     * @access   protected
     * @since    1.0.1
     */
     protected function get_announce_rate()
     {
-        try
-        {
-            $stmt = $this->query( "SELECT COUNT(*) FROM ". DB_TABLE ." WHERE update_time > '". (time() - 60) ."'" );
-            $result = $stmt->fetch(PDO::FETCH_NUM);
-            return $result[0];
-        }
-        catch(PDOException $e)
-        {
-            errorexit($e->getMessage());
-        }
+        $sql = "SELECT COUNT(*) FROM ". DB_TABLE ." WHERE update_time > '". (time() - 60) ."'";
+        
+        return $this->do_raw_query( $sql, 'count', __LINE__ );
     }
     
    /**
@@ -326,20 +430,8 @@ class reopen_db extends PDO
     protected function get_current_hashes()
     {
         $hashes = array();
-        try
-        {
-            $stmt   = $this->query( "SELECT DISTINCT info_hash FROM ". DB_TABLE .
-	                  " WHERE expire_time > '". time() ."'" );
-	        while( ($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== FALSE )
-	        {
-		        $hashes[] = $row['info_hash'];
-	        }
-	        return $hashes;
-	    }
-	    catch(PDOException $e)
-	    {
-	        errorexit($e->getMessage());
-	    }
-	    return $hashes;
+        $sql = "SELECT DISTINCT info_hash FROM ". DB_TABLE ." WHERE expire_time > '". time() ."'";
+        
+        return $this->do_raw_query( $sql, 'rows', __LINE__ );
     }
 }

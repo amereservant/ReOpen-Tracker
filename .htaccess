@@ -1,6 +1,11 @@
 Options -Indexes
 # Try to convert requests to 'scrape' or 'announce' to php file requests.
-<FilesMatch "^(scrape|announce)$">
-	ForceType application/x-httpd-php
-</FilesMatch>
-php_flag magic_quotes_gpc off
+#<IfModule mod_rewrite.c>
+#    RewriteEngine On
+#    RewriteBase /tracker
+#    RewriteCond %{REQUEST_FILENAME} !-f
+#    RewriteCond %{REQUEST_FILENAME} !-d
+#    RewriteRule ^/?scrape(.*)$ /scrape.php$1 [R,L]
+#    RewriteRule ^/?announce(.*)$ /announce.php$1 [R,L]
+#</IfModule>
+#php_flag magic_quotes_gpc off

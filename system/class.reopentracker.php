@@ -18,7 +18,7 @@
  *
  * @category    Bittorrent
  * @package     ReOpenTracker
- * @version     1.0.1
+ * @version     1.0.2
  * @author      David Miles <david@amereservant.com>
  * @link        https://github.com/amereservant/ReOpen-Tracker ReOpenTracker @ GitHub
  * @license     http://creativecommons.org/licenses/by-sa/3.0/ Creative Commons Attribution-ShareAlike 3.0 Unported
@@ -139,36 +139,30 @@ class reopen_tracker extends reopen_db
         
         // Retrieve statistics for each desired info hash
         $files = array();
-        $stmt  = $this->prepare("SELECT remaining, expire_time FROM ". DB_TABLE ." WHERE info_hash = :hash");
+        $sql   = "SELECT info_hash, remaining, expire_time FROM ". DB_TABLE ." WHERE info_hash = :hash";
         
         // Itterate over the hashes and query the database
         foreach( $hashes as $hash )
         {
-	        $stmt->bindParam(':hash', $hash, PDO::PARAM_STR);
-	        $stmt->execute();
-	        
-	        $results    = FALSE;
-	        $complete   = 0;
-	        $incomplete = 0;
-	        $downloaded = 0;
-	        
-	        // Itterate over the results for the hash and build the stats
-	        while( ($row = $stmt->fetch(PDO::FETCH_ASSOC)) !== FALSE )
-	        {
-	            if( $row['remaining'] == 0 )
-	                $complete++;
-	            else
-	                $incomplete++;
+	        $values[0][] = array('key' => ':hash', 'value' => $hash, 'type' => PDO::PARAM_STR);
+	    }
+	    
+	    $complete   = 0;
+        $incomplete = 0;
+        $downloaded = 0;
+	    foreach( $this->do_prepared_statement($sql, $values, 'rows', __LINE__) as $row )
+	    {
+	        if( $row['remaining'] == 0 )
+	            $complete++;
+	        else
+	            $incomplete++;
 	            
-	            $downloaded++;
-	            $results = TRUE;
-	        }
-	        // Don't add the hash if no data for it exists
-	        // NOTE: Not sure if the client will dislike not getting any results for the hash or not
-	        if($results === FALSE) continue;
+	        $downloaded++;
 	        
-	        $files[$hash] = array('complete' => $complete, 'incomplete' => $incomplete, 'downloaded' => $downloaded);
-        }
+	        $files[$row['info_hash']] = array('complete' => $complete, 
+	                                          'incomplete' => $incomplete, 
+	                                          'downloaded' => $downloaded );
+	    }
 
         // return data to client
         exit( bencode(array('files' => $files, 
